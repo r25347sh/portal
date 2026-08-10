@@ -1,1 +1,66 @@
- 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal — Reitansai & Asobi Seminar</title>
+  <meta name="description" content="麗澤祭とあそびセミナーへの入り口">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-layer" aria-hidden="true">
+    <canvas id="particles"></canvas>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+    <div class="noise"></div>
+  </div>
+
+  <main class="stage">
+    <header class="hero">
+      <p class="eyebrow">Entrance</p>
+      <h1 class="title">
+        <span class="title-line">Choose Your</span>
+        <span class="title-line accent">Destination</span>
+      </h1>
+      <p class="subtitle">麗澤祭とあそびセミナー。<br>二つの世界へ、ここから。</p>
+    </header>
+
+    <section class="cards" aria-label="サイトへのリンク">
+      <a class="card card-reitansai" href="https://r25347sh.github.io/reitansai/" target="_blank" rel="noopener noreferrer">
+        <div class="card-bg"></div>
+        <div class="card-content">
+          <span class="card-label">Official</span>
+          <h2 class="card-title">Reitansai</h2>
+          <p class="card-desc">麗澤祭 特設サイト<br>ゼミ・イベント・マップ</p>
+          <span class="card-cta">
+            <span>Enter</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </span>
+        </div>
+      </a>
+
+      <a class="card card-asobi" href="https://r25347sh.github.io/asobiseminar/" target="_blank" rel="noopener noreferrer">
+        <div class="card-bg"></div>
+        <div class="card-content">
+          <span class="card-label">Lab</span>
+          <h2 class="card-title">Asobi Seminar</h2>
+          <p class="card-desc">あそびセミナー<br>グループ・活動・遊びの探究</p>
+          <span class="card-cta">
+            <span>Enter</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </span>
+        </div>
+      </a>
+    </section>
+
+    <footer class="footer">
+      <p>Portal · r25347sh</p>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
