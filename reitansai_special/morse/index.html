@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Morse Voice Practice</title>
-  <meta name="description" content="声でモールス信号を練習するサイト">
+  <title>Morse Key — Voice Amplitude</title>
+  <meta name="description" content="声や音の大きさでモールス信号を打つ練習">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -23,103 +23,69 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         <span>Portal</span>
       </a>
-      <h1 class="title">Morse</h1>
-      <p class="subtitle">Voice Practice · モールス練習</p>
+      <h1 class="title">Morse Key</h1>
+      <p class="subtitle">声・音の dB で打鍵</p>
     </header>
 
-    <nav class="tabs" role="tablist" aria-label="練習モード">
-      <button type="button" class="tab active" data-mode="listen" role="tab" aria-selected="true">聞き取り</button>
-      <button type="button" class="tab" data-mode="speak" role="tab" aria-selected="false">声→モールス</button>
-      <button type="button" class="tab" data-mode="text" role="tab" aria-selected="false">テキスト</button>
-    </nav>
+    <section class="panel">
+      <p class="lead">
+        マイクに向かって<strong>声や音を出す</strong>と、音量の盛り上がりで<br>
+        トン（・）／ツー（−）を判定します。口笛・ハミングでも可。
+      </p>
 
-    <section class="panel settings-panel">
-      <div class="settings-row">
+      <button type="button" id="mic-toggle" class="btn btn-primary btn-block" aria-pressed="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        <span class="btn-label">マイク開始</span>
+      </button>
+
+      <p class="status" id="status">マイクを開始してください</p>
+
+      <div class="meter-block">
+        <div class="meter-labels">
+          <span>入力レベル</span>
+          <span id="db-readout">— dB</span>
+        </div>
+        <div class="meter-track">
+          <div class="meter-threshold" id="threshold-mark"></div>
+          <div class="meter-fill" id="level-fill"></div>
+        </div>
         <label class="setting">
-          <span>速度 <strong id="wpm-value">15</strong> WPM</span>
-          <input type="range" id="wpm" class="slider" min="5" max="30" value="15">
-        </label>
-        <label class="setting">
-          <span>音程 <strong id="freq-value">600</strong> Hz</span>
-          <input type="range" id="freq" class="slider" min="400" max="900" value="600" step="10">
+          <span>しきい値 <strong id="thresh-value">-35</strong> dB</span>
+          <input type="range" id="thresh" class="slider" min="-60" max="-15" value="-35">
         </label>
       </div>
-      <div class="settings-row">
-        <label class="setting char-set">
-          <span>出題範囲</span>
-          <select id="charset" class="select">
-            <option value="letters">英字 A–Z</option>
-            <option value="digits">数字 0–9</option>
-            <option value="both" selected>英字 + 数字</option>
-            <option value="common">よく使う語</option>
-          </select>
-        </label>
+
+      <div class="key-state" id="key-state">
+        <span class="key-dot" id="key-indicator"></span>
+        <span id="key-label">OFF</span>
       </div>
     </section>
 
-    <section class="panel mode-panel" id="panel-listen" data-panel="listen">
-      <p class="mode-desc">モールスを聞いて、答えを<strong>声で言う</strong>か入力してください。</p>
-
-      <div class="challenge">
-        <div class="morse-visual" id="listen-morse" aria-live="polite">—</div>
-        <p class="hint muted" id="listen-hint">「出題」でランダムに再生</p>
+    <section class="panel">
+      <div class="output-head">
+        <h2 class="panel-title">受信バッファ</h2>
+        <button type="button" id="clear-btn" class="btn btn-ghost">クリア</button>
       </div>
 
-      <div class="actions">
-        <button type="button" id="listen-next" class="btn btn-primary">出題</button>
-        <button type="button" id="listen-replay" class="btn btn-secondary" disabled>再生</button>
-        <button type="button" id="listen-mic" class="btn btn-voice" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          声で答える
-        </button>
-      </div>
+      <div class="morse-line" id="morse-line" aria-live="polite">—</div>
+      <div class="text-line" id="text-line">—</div>
 
-      <div class="answer-row">
-        <input type="text" id="listen-input" class="input" placeholder="答えを入力（英数字）" autocomplete="off" maxlength="32" disabled>
-        <button type="button" id="listen-check" class="btn btn-secondary" disabled>判定</button>
-      </div>
-
-      <p class="feedback" id="listen-feedback" role="status"></p>
-      <p class="score muted">連続正解: <strong id="listen-streak">0</strong></p>
-    </section>
-
-    <section class="panel mode-panel hidden" id="panel-speak" data-panel="speak">
-      <p class="mode-desc">文字や単語を<strong>声で言う</strong>と、モールスで再生します。</p>
-
-      <div class="challenge">
-        <div class="heard" id="speak-heard">—</div>
-        <div class="morse-visual" id="speak-morse">—</div>
-      </div>
-
-      <div class="actions">
-        <button type="button" id="speak-mic" class="btn btn-voice btn-lg">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          押して話す
-        </button>
-        <button type="button" id="speak-play" class="btn btn-secondary" disabled>再生</button>
-      </div>
-      <p class="feedback muted" id="speak-status">マイクボタンを押して英数字を話してください</p>
-    </section>
-
-    <section class="panel mode-panel hidden" id="panel-text" data-panel="text">
-      <p class="mode-desc">テキストを入力してモールス再生・表示します。</p>
-
-      <textarea id="text-input" class="textarea" rows="3" placeholder="例: SOS HELLO 73" maxlength="200"></textarea>
-      <div class="morse-visual tall" id="text-morse">—</div>
-
-      <div class="actions">
-        <button type="button" id="text-play" class="btn btn-primary">再生</button>
-        <button type="button" id="text-stop" class="btn btn-secondary">停止</button>
+      <div class="timing-row">
+        <label class="setting compact">
+          <span>基準ユニット <strong id="unit-value">80</strong> ms</span>
+          <input type="range" id="unit" class="slider" min="40" max="200" value="80" step="5">
+        </label>
+        <p class="hint muted">短音 ≈ 1u / 長音 ≈ 3u / 字間 ≈ 3u / 語間 ≈ 7u</p>
       </div>
     </section>
 
     <details class="panel ref-panel">
-      <summary>モールス符号表</summary>
+      <summary>モールス符号表（タップで再生）</summary>
       <div class="ref-grid" id="ref-grid"></div>
     </details>
 
     <footer class="footer">
-      <p>International Morse · Web Audio + Speech Recognition</p>
+      <p>Amplitude keying · Web Audio Analyser</p>
     </footer>
   </main>
 
