@@ -16,15 +16,14 @@
   const centsMeter = document.getElementById("cents-meter");
   const levelFill = document.getElementById("level-fill");
 
-  const toneToggle = document.getElementById("tone-toggle");
-  const noteSelect = document.getElementById("note-select");
-  const octaveSelect = document.getElementById("octave-select");
+  const soundbackBtn = document.getElementById("soundback-btn");
+  const soundbackLabel = document.getElementById("soundback-label");
+  const targetNoteEl = document.getElementById("target-note");
+  const targetFreqEl = document.getElementById("target-freq");
   const volumeSlider = document.getElementById("volume-slider");
   const volumeValue = document.getElementById("volume-value");
-  const refFreqEl = document.getElementById("ref-freq");
-  const refNoteLabel = document.getElementById("ref-note-label");
 
-  /* ---------- Audio context (shared, lazy) ---------- */
+  /* ---------- Audio ---------- */
   let audioCtx = null;
 
   function ensureAudioCtx() {
@@ -37,47 +36,62 @@
     return audioCtx;
   }
 
-  /* ---------- Frequency helpers ---------- */
-  function freqFromNote(noteName, octave) {
-    const idx = NOTE_NAMES.indexOf(noteName);
-    if (idx < 0) return A4_FREQ;
-    const midi = (octave + 1) * 12 + idx;
+  /* ---------- Note math ---------- */
+  function freqFromMidi(midi) {
     return A4_FREQ * Math.pow(2, (midi - A4_MIDI) / 12);
   }
 
   function noteFromFreq(freq) {
     if (!freq || freq < 20 || freq > 5000) return null;
     const midi = Math.round(12 * Math.log2(freq / A4_FREQ) + A4_MIDI);
-    const cents = Math.round(1200 * Math.log2(freq / (A4_FREQ * Math.pow(2, (midi - A4_MIDI) / 12))));
+    const targetFreq = freqFromMidi(midi);
+    const cents = Math.round(1200 * Math.log2(freq / targetFreq));
     const name = NOTE_NAMES[((midi % 12) + 12) % 12];
     const octave = Math.floor(midi / 12) - 1;
-    return { name, octave, midi, cents, freq };
+    return { name, octave, midi, cents, freq, targetFreq };
   }
 
-  /* ========== Soundback (reference oscillator) ========== */
+  /* ========== Latest detected target (for Soundback) ========== */
+  let latestTarget = null;
+
+  function setTarget(info) {
+    if (!info) {
+      latestTarget = null;
+      targetNoteEl.textContent = "—";
+      targetFreqEl.textContent = "—";
+      return;
+    }
+    latestTarget = {
+      name: info.name,
+      octave: info.octave,
+      midi: info.midi,
+      targetFreq: info.targetFreq,
+    };
+    targetNoteEl.textContent = info.name + info.octave;
+    targetFreqEl.textContent = info.targetFreq.toFixed(2);
+  }
+
+  /* ========== Soundback oscillator (hold = play correct pitch) ========== */
   let osc = null;
   let gainNode = null;
-  let isTonePlaying = false;
+  let isHolding = false;
 
-  function updateRefPreview() {
-    const note = noteSelect.value;
-    const oct = parseInt(octaveSelect.value, 10);
-    const f = freqFromNote(note, oct);
-    refFreqEl.textContent = f.toFixed(2);
-    refNoteLabel.textContent = note + oct;
-    if (isTonePlaying && osc) {
-      osc.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.01);
-    }
+  function getVolume() {
+    return (parseInt(volumeSlider.value, 10) / 100) * 0.35;
   }
 
-  function startTone() {
+  function startSoundback() {
+    if (!latestTarget) return;
     const ctx = ensureAudioCtx();
-    const note = noteSelect.value;
-    const oct = parseInt(octaveSelect.value, 10);
-    const freq = freqFromNote(note, oct);
-    const vol = parseInt(volumeSlider.value, 10) / 100;
+    const freq = latestTarget.targetFreq;
 
-    stopTone(true);
+    if (osc) {
+      osc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.015);
+      if (gainNode) {
+        gainNode.gain.setTargetAtTime(getVolume(), ctx.currentTime, 0.02);
+      }
+      return;
+    }
 
     osc = ctx.createOscillator();
     gainNode = ctx.createGain();
@@ -87,57 +101,69 @@
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
     osc.start();
-    gainNode.gain.setTargetAtTime(vol * 0.35, ctx.currentTime, 0.03);
-    isTonePlaying = true;
-    toneToggle.setAttribute("aria-pressed", "true");
-    toneToggle.querySelector(".btn-label").textContent = "停止";
+    gainNode.gain.setTargetAtTime(getVolume(), ctx.currentTime, 0.03);
   }
 
-  function stopTone(silent) {
-    if (osc) {
-      try {
-        if (gainNode && audioCtx) {
-          gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
-          const o = osc;
-          const g = gainNode;
-          setTimeout(() => {
-            try { o.stop(); } catch (_) {}
-            try { o.disconnect(); g.disconnect(); } catch (_) {}
-          }, 80);
-        } else {
-          osc.stop();
-          osc.disconnect();
-        }
-      } catch (_) {}
-      osc = null;
-      gainNode = null;
-    }
-    isTonePlaying = false;
-    if (!silent) {
-      toneToggle.setAttribute("aria-pressed", "false");
-      toneToggle.querySelector(".btn-label").textContent = "再生";
+  function stopSoundback() {
+    if (!osc) return;
+    const o = osc;
+    const g = gainNode;
+    osc = null;
+    gainNode = null;
+    if (g && audioCtx) {
+      g.gain.setTargetAtTime(0, audioCtx.currentTime, 0.025);
+      setTimeout(() => {
+        try { o.stop(); } catch (_) {}
+        try { o.disconnect(); g.disconnect(); } catch (_) {}
+      }, 90);
+    } else {
+      try { o.stop(); o.disconnect(); } catch (_) {}
     }
   }
 
-  toneToggle.addEventListener("click", () => {
-    if (isTonePlaying) stopTone();
-    else startTone();
+  function updateSoundbackFreq() {
+    if (!isHolding || !osc || !latestTarget || !audioCtx) return;
+    osc.frequency.setTargetAtTime(latestTarget.targetFreq, audioCtx.currentTime, 0.02);
+  }
+
+  function setHolding(on) {
+    isHolding = on;
+    soundbackBtn.classList.toggle("is-holding", on);
+    soundbackBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    soundbackLabel.textContent = on ? "再生中…" : "押して基準音を再生";
+    if (on) startSoundback();
+    else stopSoundback();
+  }
+
+  function onPointerDown(e) {
+    if (soundbackBtn.disabled) return;
+    e.preventDefault();
+    soundbackBtn.setPointerCapture?.(e.pointerId);
+    setHolding(true);
+  }
+
+  function onPointerUp(e) {
+    if (!isHolding) return;
+    e.preventDefault();
+    setHolding(false);
+  }
+
+  soundbackBtn.addEventListener("pointerdown", onPointerDown);
+  soundbackBtn.addEventListener("pointerup", onPointerUp);
+  soundbackBtn.addEventListener("pointercancel", onPointerUp);
+  soundbackBtn.addEventListener("pointerleave", () => {
+    if (isHolding) setHolding(false);
   });
+  soundbackBtn.addEventListener("contextmenu", (e) => e.preventDefault());
 
-  noteSelect.addEventListener("change", updateRefPreview);
-  octaveSelect.addEventListener("change", updateRefPreview);
   volumeSlider.addEventListener("input", () => {
     volumeValue.textContent = volumeSlider.value + "%";
-    if (gainNode && audioCtx) {
-      const vol = parseInt(volumeSlider.value, 10) / 100;
-      gainNode.gain.setTargetAtTime(vol * 0.35, audioCtx.currentTime, 0.02);
+    if (gainNode && audioCtx && isHolding) {
+      gainNode.gain.setTargetAtTime(getVolume(), audioCtx.currentTime, 0.02);
     }
   });
 
-  updateRefPreview();
-  toneToggle.disabled = false;
-
-  /* ========== Pitch detection (autocorrelation) ========== */
+  /* ========== Pitch detection ========== */
   let mediaStream = null;
   let analyser = null;
   let micSource = null;
@@ -154,10 +180,6 @@
     return Math.sqrt(sum / buffer.length);
   }
 
-  /**
-   * Autocorrelation pitch detection (inspired by cwilso/PitchDetect).
-   * Returns fundamental frequency or -1 if unclear.
-   */
   function autoCorrelate(buffer, sampleRate) {
     const SIZE = buffer.length;
     let rms = 0;
@@ -195,7 +217,7 @@
     }
 
     let d = 0;
-    while (c[d] > c[d + 1]) d++;
+    while (d < n - 1 && c[d] > c[d + 1]) d++;
     let maxVal = -1;
     let maxPos = -1;
     for (let i = d; i < n; i++) {
@@ -231,6 +253,8 @@
       centsNeedle.style.left = "50%";
       centsNeedle.className = "cents-needle";
       centsMeter.setAttribute("aria-valuenow", "0");
+      setTarget(null);
+      if (isHolding) stopSoundback();
       return;
     }
 
@@ -255,6 +279,9 @@
     } else {
       centsNeedle.classList.add("flat");
     }
+
+    setTarget(noteInfo);
+    updateSoundbackFreq();
   }
 
   function detectLoop() {
@@ -290,6 +317,7 @@
       micToggle.setAttribute("aria-pressed", "true");
       micToggle.querySelector(".btn-label").textContent = "マイク停止";
       micStatus.textContent = "検出中…";
+      soundbackBtn.disabled = false;
       detectLoop();
     } catch (err) {
       console.error(err);
@@ -316,6 +344,8 @@
     micToggle.setAttribute("aria-pressed", "false");
     micToggle.querySelector(".btn-label").textContent = "マイク開始";
     micStatus.textContent = "マイクを開始して楽器や声を当ててください";
+    soundbackBtn.disabled = true;
+    if (isHolding) setHolding(false);
     updateUI(null, 0);
   }
 
@@ -326,6 +356,6 @@
 
   window.addEventListener("pagehide", () => {
     stopMic();
-    stopTone(true);
+    stopSoundback();
   });
 })();
